@@ -1,44 +1,47 @@
 const express = require('express');
-const cors = require('cors');
 const axios = require('axios');
-const app = express();
+const cors = require('cors');
 
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Enable CORS so your GitHub site can access this server
 app.use(cors());
 
 app.get('/check', async (req, res) => {
     const targetUrl = req.query.url;
-    if (!targetUrl) return res.status(400).send("No URL");
+
+    if (!targetUrl) {
+        return res.status(400).json({ error: "Missing URL parameter" });
+    }
 
     try {
+        // We use axios to fetch the headers of the target site
         const response = await axios.get(targetUrl, {
-            timeout: 8000,
-            maxRedirects: 10,
-            validateStatus: false,
-            headers: { 
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' 
+            timeout: 5000, // 5 second timeout
+            maxRedirects: 5,
+            validateStatus: false, // Don't throw error on 404s/403s
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
         });
 
-        const finalUrl = response.request.res.responseUrl || targetUrl;
-        const pageContent = String(response.data).toLowerCase();
-
-        // Check for Linewize signatures in the URL or the HTML content
-        const isLinewize = 
-            finalUrl.includes("linewize.net") || 
-            pageContent.includes("linewize") || 
-            pageContent.includes("familyzone") || // Linewize's parent company
-            pageContent.includes("rule=");
-
+        // Send back the results to your Chromebook
         res.json({
             reachable: true,
-            isBlockedByFilter: isLinewize,
-            finalUrl: finalUrl,
-            status: response.status
+            status: response.status,
+            finalUrl: response.request.res.responseUrl || targetUrl
         });
+
     } catch (error) {
-        res.json({ reachable: false, error: error.message });
+        // If the site is actually down on the real internet
+        res.json({
+            reachable: false,
+            error: error.message
+        });
     }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
